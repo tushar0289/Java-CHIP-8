@@ -4,15 +4,12 @@ import hardware.*;
 import ui.EmulatorFrame;
 import core.CPU;
 import java.io.IOException;
-// import util.ROMLoader;
 
 public class Main {
-
-    private static final int CPU_CLOCK_HZ = 500;
-    private static final int TARGET_FPS = 60;
-    private static final int INSTRUCTIONS_PER_FRAME = CPU_CLOCK_HZ / TARGET_FPS; 
-    private static final long FRAME_TIME_MS = 1000 / TARGET_FPS; 
-
+	private static final long CPU_PERIOD_NS = 1_000_000_000L / 500;
+	private static final long TIMER_PERIOD_NS = 1_000_000_000L / 60;
+	private static final long FRAME_PERIOD_NS = 1_000_000_000L / 60;
+		
     public static void main(String[] args) {
         String romPath = (args.length > 0) ? args[0] : "roms/pong.ch8";
 
@@ -29,35 +26,40 @@ public class Main {
 
         long lastTimerUpdate = System.currentTimeMillis();
 
-        while (true) {
-            long frameStart = System.currentTimeMillis();
+	    long now = System.nanoTime();
 
-            for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++) {
-                cpu.cycle();
-            }
+		long lastCpuTime = now;
+		long lastTimerTime = now;
+		long lastFrameTime = now;
 
-            long now = System.currentTimeMillis();
-            if (now - lastTimerUpdate >= 16) { // ~16.6 ms (60 Hz)
-                cpu.updateTimers();
-                lastTimerUpdate = now;
-            }
+		while (true) {
+			now = System.nanoTime();
 
-            if (cpu.hasDrawnFlag()) {
-                frame.render();
-                cpu.clearDrawFlag();
-            }
+			while (now - lastCpuTime >= CPU_PERIOD_NS) {
+				cpu.cycle();
+				lastCpuTime += CPU_PERIOD_NS;
+			}
 
-            long elapsed = System.currentTimeMillis() - frameStart;
-            long sleepMs = FRAME_TIME_MS - elapsed;
+			while (now - lastTimerTime >= TIMER_PERIOD_NS) {
+				cpu.updateTimers();
+				lastTimerTime += TIMER_PERIOD_NS;
+			}
 
-            if (sleepMs > 0) {
-                try {
-                    Thread.sleep(sleepMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
+			if (now - lastFrameTime >= FRAME_PERIOD_NS) {
+				if (cpu.hasDrawnFlag()) {
+					frame.render();
+					cpu.clearDrawFlag();
+				}
+
+				lastFrameTime += FRAME_PERIOD_NS;
+			}
+
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
     }
 }
