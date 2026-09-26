@@ -6,54 +6,62 @@ import core.CPU;
 import util.ROMLoader;
 
 public class Main {
-	private static final int CPU_CLOCK_HZ = 500;
-	private static final int TARGET_FPS = 60;
-	private static final int INSTRUCTIONS_PER_FRAME = CPU_CLOCK_HZ / TARGET_FPS;
-	private static final long FRAME_DELAY_MS = 1000 / TARGET_FPS;
 
-	public static void main(String[] args) {
-		String romPath = (args.length > 0) ? args[0] : "roms/pong.ch8";
+    // Stable CHIP-8 Specs: 500 Hz CPU, 60 FPS Video Display
+    private static final int CPU_CLOCK_HZ = 500;
+    private static final int TARGET_FPS = 60;
+    private static final int INSTRUCTIONS_PER_FRAME = CPU_CLOCK_HZ / TARGET_FPS; // ~8 cycles per frame
+    private static final long FRAME_TIME_MS = 1000 / TARGET_FPS; // 16 ms per frame
+
+    public static void main(String[] args) {
+        String romPath = (args.length > 0) ? args[0] : "roms/pong.ch8";
 
         Memory memory = new Memory();
         CPU cpu = new CPU(memory);
         EmulatorFrame frame = new EmulatorFrame(cpu);
-		
-		try {
-			ROMLoader.loadROM(memory, romPath);
-		}
-		catch (Exception e) {
-			System.err.println("Failed to lead ROM " + e.getMessage());
-			System.err.println("Usage: java Main <path/to/rom.ch8");
-			return;
-		}
 
-		System.out.println("Starting emulation loop...");
+        try {
+            ROMLoader.loadROM(memory, romPath);
+        } catch (Exception e) {
+            System.err.println("Failed to load ROM: " + e.getMessage());
+            return;
+        }
 
-		while(true) {
-			long startTime = System.currentTimeMillis();
-			for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++) {
-				cpu.cycle();
-			}
+        long lastTimerUpdate = System.currentTimeMillis();
 
-			cpu.updateTimers();
+        while (true) {
+            long frameStart = System.currentTimeMillis();
 
-			if (cpu.hasDrawnFlag()) {
-				frame.render();
-				cpu.clearDrawFlag();
-			}
+            // 1. Run CPU Cycles (~8 instructions per frame @ 60 FPS)
+            for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++) {
+                cpu.cycle();
+            }
 
-			long elapsedTime = System.currentTimeMillis() - startTime;
-			long sleepTime = FRAME_DELAY_MS - elapsedTime;
+            // 2. Decrement Delay and Sound Timers strictly at 60 Hz
+            long now = System.currentTimeMillis();
+            if (now - lastTimerUpdate >= 16) { // ~16.6 ms (60 Hz)
+                cpu.updateTimers();
+                lastTimerUpdate = now;
+            }
 
-			if (sleepTime > 0) {
-				try {
-					Thread.sleep(sleepTime);
-				}
-				catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					break;
-				}
-			}
-		}
+            // 3. Render frame only when CPU draw flag is set
+            if (cpu.hasDrawnFlag()) {
+                frame.render();
+                cpu.clearDrawFlag();
+            }
+
+            // 4. Stable Frame Rate Control
+            long elapsed = System.currentTimeMillis() - frameStart;
+            long sleepMs = FRAME_TIME_MS - elapsed;
+
+            if (sleepMs > 0) {
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
     }
 }

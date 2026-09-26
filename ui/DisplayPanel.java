@@ -5,15 +5,16 @@ import javax.swing.JPanel;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Color;
+import java.awt.Toolkit;
 
 public class DisplayPanel extends JPanel {
-	public static final int SCALE = 21;
+	public static final int SCALE = 12;
 	public static final int CHIP8_WIDTH = 64;
 	public static final int CHIP8_HEIGHT = 32;
 
 	private final CPU cpu;
 
-	private static final Color COLoR_BACKGROUND = new Color(0x12, 0x12, 0x12);
+	private static final Color COLOR_BACKGROUND = new Color(0x12, 0x12, 0x12);
 	private static final Color COLOR_PIXEL = new Color(0x33, 0xFF, 0x33);
 
 	public DisplayPanel(CPU cpu) {
@@ -22,7 +23,9 @@ public class DisplayPanel extends JPanel {
 		int preferredHeight = CHIP8_HEIGHT * SCALE;
 
 		setPreferredSize(new Dimension(preferredWidth, preferredHeight));
-		setBackground(COLoR_BACKGROUND);
+		setBackground(COLOR_BACKGROUND);
+
+		setDoubleBuffered(true);
 	}
 
 	@Override
@@ -40,5 +43,6 @@ public class DisplayPanel extends JPanel {
 				}
 			}
 		}
+		Toolkit.getDefaultToolkit().sync();
 	}
 }

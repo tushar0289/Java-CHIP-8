@@ -17,6 +17,11 @@ public class EmulatorFrame extends JFrame {
 
 		addKeyListener(new KeyListener(cpu));
 		setFocusable(true);
+		setFocusTraversalKeysEnabled(false);
+
+		pack();
+		setLocationRelativeTo(null);
+		requestFocusInWindow();
 
 		pack();
 		setLocationRelativeTo(null);
