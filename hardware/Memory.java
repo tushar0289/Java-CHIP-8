@@ -3,6 +3,7 @@ package hardware;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
 public class Memory {
 	private final byte[] ram = new byte[4096];
@@ -46,9 +47,8 @@ public class Memory {
 	}
 
 	public void clear () {
-		for (int i = 0; i < ram.length; i++) {
-			ram[i] = 0;
-		}
+		Arrays.fill(ram, (byte) 0);
+		loadFontSet();
 	}
 
 	public Memory() {

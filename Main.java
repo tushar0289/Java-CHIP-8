@@ -7,7 +7,6 @@ import util.ROMLoader;
 
 public class Main {
 
-    // Stable CHIP-8 Specs: 500 Hz CPU, 60 FPS Video Display
     private static final int CPU_CLOCK_HZ = 500;
     private static final int TARGET_FPS = 60;
     private static final int INSTRUCTIONS_PER_FRAME = CPU_CLOCK_HZ / TARGET_FPS; // ~8 cycles per frame

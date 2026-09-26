@@ -81,6 +81,10 @@ public class CPU {
 						clearDisplay();
 						break;
 					case 0x00EE:
+						if (sp <= 0) {
+							throw new IllegalStateException("CHIP-8 stack underflow");
+						}
+
 						sp--;
 						pc = stack[sp];
 						break;
@@ -94,6 +98,10 @@ public class CPU {
 				pc = twelve_bits;
 				break;
 			case 0x2000:
+				if (sp >= stack.length) {
+					throw new IllegalStateException("CHIP-8 stack overflow");
+				}
+
 				stack[sp] = pc;
 				sp++;
 				pc = twelve_bits;
@@ -109,6 +117,11 @@ public class CPU {
 				}
 				break;
 			case 0x5000:
+				if (four_bits != 0) {
+					System.err.printf("Unknown opcode: 0x%04X%n", opcode);
+					break;
+				}
+
 				if (V[x] == V[y]) {
 					pc += 2;
 				}
@@ -121,33 +134,33 @@ public class CPU {
 				break;
 			case 0x8000:
                 switch (four_bits) {
-                    case 0x0: V[x] = V[y]; break; // 8XY0: Set VX = VY
-                    case 0x1: V[x] = (V[x] | V[y]) & 0xFF; break; // 8XY1: VX = VX | VY
-                    case 0x2: V[x] = (V[x] & V[y]) & 0xFF; break; // 8XY2: VX = VX & VY
-                    case 0x3: V[x] = (V[x] ^ V[y]) & 0xFF; break; // 8XY3: VX = VX ^ VY
+                    case 0x0: V[x] = V[y]; break;
+                    case 0x1: V[x] = (V[x] | V[y]) & 0xFF; break;
+                    case 0x2: V[x] = (V[x] & V[y]) & 0xFF; break;
+                    case 0x3: V[x] = (V[x] ^ V[y]) & 0xFF; break;
 
-                    case 0x4: // 8XY4: VX = VX + VY, set VF = carry
+                    case 0x4:
                         int sum = V[x] + V[y];
                         V[0xF] = (sum > 255) ? 1 : 0;
                         V[x] = sum & 0xFF;
                         break;
 
-                    case 0x5: // 8XY5: VX = VX - VY, set VF = NOT borrow
+                    case 0x5:
                         V[0xF] = (V[x] >= V[y]) ? 1 : 0;
                         V[x] = (V[x] - V[y]) & 0xFF;
                         break;
 
-                    case 0x6: // 8XY6: VX = VX >> 1, VF = dropped bit
+                    case 0x6:
                         V[0xF] = V[x] & 0x1;
                         V[x] = (V[x] >> 1) & 0xFF;
                         break;
 
-                    case 0x7: // 8XY7: VX = VY - VX, set VF = NOT borrow
+                    case 0x7:
                         V[0xF] = (V[y] >= V[x]) ? 1 : 0;
                         V[x] = (V[y] - V[x]) & 0xFF;
                         break;
 
-                    case 0x0E: // 8XYE: VX = VX << 1, VF = MSB bit
+                    case 0x0E:
                         V[0xF] = (V[x] >> 7) & 0x1;
                         V[x] = (V[x] << 1) & 0xFF;
                         break;
@@ -158,54 +171,38 @@ public class CPU {
                 }
                 break;
 
-            case 0x9000: // 9XY0: Skip next instruction if VX != VY
-                if (V[x] != V[y]) pc += 2;
-                break;
+			case 0x9000:
+				if (four_bits != 0) {
+					System.err.printf("Unknown opcode: 0x%04X%n", opcode);
+					break;
+				}
 
-            case 0xA000: // ANNN: Set Index Register I = NNN
+				if (V[x] != V[y]) {
+					pc += 2;
+				}
+				break;
+
+            case 0xA000:
                 I = twelve_bits;
                 break;
 
-            case 0xB000: // BNNN: Jump to address NNN + V0
+            case 0xB000:
                 pc = twelve_bits + V[0];
                 break;
 
-            case 0xC000: // CXNN: Set VX = random byte & NN
+            case 0xC000:
                 V[x] = (random.nextInt(256)) & eight_bits;
                 break;
 
-            case 0xD000: // DXYN: Draw sprite at (VX, VY) with width 8 and height N
-                int xPos = V[x] % 64;
-                int yPos = V[y] % 32;
-                V[0xF] = 0; // Reset collision flag
-
-                for (int row = 0; row < four_bits; row++) {
-                    int spriteByte = memory.read(I + row);
-
-                    for (int col = 0; col < 8; col++) {
-                        // Extract bit from sprite byte (left to right)
-                        if ((spriteByte & (0x80 >> col)) != 0) {
-                            int targetX = (xPos + col) % 64;
-                            int targetY = (yPos + row) % 32;
-
-                            // If pixel is already ON, collision detected -> turn OFF
-                            if (display[targetX][targetY]) {
-                                V[0xF] = 1;
-                            }
-                            display[targetX][targetY] ^= true; // XOR toggle
-                        }
-                    }
-                }
-                drawFlag = true;
-                break;
-
+            case 0xD000:
+				drawSprite(x, y, four_bits);
             case 0xE000:
                 switch (eight_bits) {
-                    case 0x9E: // EX9E: Skip next instruction if key in VX is pressed
+                    case 0x9E:
                         if (keys[V[x] & 0xF]) pc += 2;
                         break;
 
-                    case 0xA1: // EXA1: Skip next instruction if key in VX is NOT pressed
+                    case 0xA1:
                         if (!keys[V[x] & 0xF]) pc += 2;
                         break;
 
@@ -217,11 +214,11 @@ public class CPU {
 
             case 0xF000:
                 switch (eight_bits) {
-                    case 0x07: // FX07: Set VX = Delay Timer value
+                    case 0x07:
                         V[x] = delayTimer;
                         break;
 
-                    case 0x0A: // FX0A: Wait for key press, store key index in VX
+                    case 0x0A:
                         boolean keyPressed = false;
                         for (int i = 0; i < 16; i++) {
                             if (keys[i]) {
@@ -231,39 +228,39 @@ public class CPU {
                             }
                         }
                         if (!keyPressed) {
-                            pc -= 2; // Rewind PC so execution blocks until a key is pressed
+                            pc -= 2;
                         }
                         break;
 
-                    case 0x15: // FX15: Set Delay Timer = VX
+                    case 0x15:
                         delayTimer = V[x];
                         break;
 
-                    case 0x18: // FX18: Set Sound Timer = VX
+                    case 0x18:
                         soundTimer = V[x];
                         break;
 
-                    case 0x1E: // FX1E: Set I = I + VX
+                    case 0x1E:
                         I = (I + V[x]) & 0xFFFF;
                         break;
 
-                    case 0x29: // FX29: Set I = memory location of font character sprite in VX
+                    case 0x29:
                         I = 0x050 + ((V[x] & 0xF) * 5);
                         break;
 
-                    case 0x33: // FX33: Store Binary-Coded Decimal (BCD) representation of VX at I, I+1, I+2
+                    case 0x33:
                         memory.write(I,     V[x] / 100);
                         memory.write(I + 1, (V[x] / 10) % 10);
                         memory.write(I + 2, V[x] % 10);
                         break;
 
-                    case 0x55: // FX55: Dump registers V0 through VX into memory starting at I
+                    case 0x55:
                         for (int i = 0; i <= x; i++) {
                             memory.write(I + i, V[i]);
                         }
                         break;
 
-                    case 0x65: // FX65: Load registers V0 through VX from memory starting at I
+                    case 0x65:
                         for (int i = 0; i <= x; i++) {
                             V[i] = memory.read(I + i);
                         }
@@ -290,6 +287,32 @@ public class CPU {
 		}
 	}
 
+	private void drawSprite(int xRegister, int yRegister, int height) {
+		int xPos = V[xRegister] % 64;
+		int yPos = V[yRegister] % 32;
+
+		V[0xF] = 0;
+
+		for (int row = 0; row < height; row++) {
+			int spriteByte = memory.read(I + row);
+
+			for (int col = 0; col < 8; col++) {
+				if ((spriteByte & (0x80 >> col)) != 0) {
+					int targetX = (xPos + col) % 64;
+					int targetY = (yPos + row) % 32;
+
+					if (display[targetX][targetY]) {
+						V[0xF] = 1;
+					}
+
+					display[targetX][targetY] ^= true;
+				}
+			}
+		}
+
+		drawFlag = true;
+	}
+
 	public boolean[][] getDisplay() {
 		return display;
 	}
@@ -300,8 +323,14 @@ public class CPU {
 		drawFlag = false;
 	}
 	public void setKey(int keyIndex, boolean pressed) {
-		keys[keyIndex & 0xF] = pressed;
-	}
+		if (keyIndex < 0 || keyIndex >= 16) {
+			throw new IllegalArgumentException(
+				"Invalid CHIP-8 key: " + keyIndex
+			);
+    }
+
+    keys[keyIndex] = pressed;
+}
 	public int getRegister(int index) {
 		return V[index] & 0xFF;
 	}
