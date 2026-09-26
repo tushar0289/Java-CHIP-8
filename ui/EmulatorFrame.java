@@ -7,7 +7,7 @@ public class EmulatorFrame extends JFrame {
 	private final DisplayPanel displayPanel;
 
 	public EmulatorFrame(CPU cpu) {
-		super("CHIP-8 Emulaotr");
+		super("CHIP-8 Emulator");
 
 		displayPanel = new DisplayPanel(cpu);
 
